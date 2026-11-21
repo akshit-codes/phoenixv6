@@ -10,3 +10,7 @@ _*
 /user/usys.S
 .gdbinit
 TAGS
+
+# local study notes, not part of the project
+study-guide/
+test-xv6.out
