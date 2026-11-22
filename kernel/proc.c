@@ -16,7 +16,6 @@ int nextpid = 1;
 struct spinlock pid_lock;
 
 extern void forkret(void);
-static void freeproc(struct proc *p);
 
 extern char trampoline[]; // trampoline.S
 
@@ -106,7 +105,7 @@ allocpid()
 // If found, initialize state required to run in the kernel,
 // and return with p->lock held.
 // If there are no free procs, or a memory allocation fails, return 0.
-static struct proc *
+struct proc *
 allocproc(void)
 {
   struct proc *p;
@@ -124,6 +123,8 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->snap_req = 0;
+  p->sname[0] = 0;
 
   // Allocate a trapframe page.
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0) {
@@ -152,7 +153,7 @@ found:
 // free a proc structure and the data hanging from it,
 // including user pages.
 // p->lock must be held.
-static void
+void
 freeproc(struct proc *p)
 {
   if (p->trapframe)
@@ -613,6 +614,28 @@ kkill(int pid)
         // Wake process from sleep().
         p->state = RUNNABLE;
       }
+      release(&p->lock);
+      return 0;
+    }
+    release(&p->lock);
+  }
+  return -1;
+}
+
+// Ask the process with the given pid to save a snapshot of itself
+// under the given name. Like kkill(), this only leaves a note: the
+// target acts on it the next time it is about to return to user
+// space (see usertrap() in trap.c).
+int
+snap_request(int pid, char *name)
+{
+  struct proc *p;
+
+  for (p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if (p->pid == pid && p->state != UNUSED && p->state != ZOMBIE) {
+      safestrcpy(p->sname, name, sizeof(p->sname));
+      p->snap_req = 1;
       release(&p->lock);
       return 0;
     }

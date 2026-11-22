@@ -85,6 +85,13 @@ usertrap(void)
   if (which_dev == 2)
     yield();
 
+  // if someone asked for a snapshot of this process, take it now.
+  // whatever brought us into the kernel is finished, so the
+  // trapframe and user memory describe the process exactly as it
+  // will be when it resumes.
+  if (snap_due(p))
+    snap_save(p);
+
   prepare_return();
 
   // the user page table to switch to, for trampoline.S

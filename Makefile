@@ -26,6 +26,7 @@ OBJS = \
   $K/pipe.o \
   $K/exec.o \
   $K/sysfile.o \
+  $K/snap.o \
   $K/kernelvec.o \
   $K/plic.o \
   $K/virtio_disk.o
@@ -151,6 +152,9 @@ UPROGS=\
 	$U/_forphan\
 	$U/_dorphan\
 	$U/_sync\
+	$U/_checkpoint\
+	$U/_restore\
+	$U/_counter\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

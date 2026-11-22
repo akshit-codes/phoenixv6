@@ -110,3 +110,48 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// Fetch the nth system call argument as a snapshot name:
+// 1 to SNAMELEN-1 letters or digits. The name becomes part of a
+// file name, so nothing else is allowed.
+static int
+argsname(int n, char *name)
+{
+  int i;
+
+  if (argstr(n, name, SNAMELEN) < 1)
+    return -1;
+  for (i = 0; name[i]; i++) {
+    char c = name[i];
+    if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+          (c >= '0' && c <= '9')))
+      return -1;
+  }
+  return 0;
+}
+
+// checkpoint(pid, name): ask process pid to save a snapshot of
+// itself. Returns as soon as the request is recorded.
+uint64
+sys_checkpoint(void)
+{
+  int pid;
+  char name[SNAMELEN];
+
+  argint(0, &pid);
+  if (argsname(1, name) < 0)
+    return -1;
+  return snap_request(pid, name);
+}
+
+// restore(name): start a new process from a snapshot.
+// Returns the new process's pid.
+uint64
+sys_restore(void)
+{
+  char name[SNAMELEN];
+
+  if (argsname(0, name) < 0)
+    return -1;
+  return snap_restore(name);
+}

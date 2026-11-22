@@ -41,6 +41,7 @@ int             dirlink(struct inode*, char*, uint);
 struct inode*   dirlookup(struct inode*, char*, uint*);
 struct inode*   ialloc(uint, short);
 struct inode*   idup(struct inode*);
+struct inode*   iget_type(uint, uint, short);
 void            iinit();
 void            ilock(struct inode*);
 void            iput(struct inode*);
@@ -81,6 +82,9 @@ void            printkinit(void);
 // proc.c
 int             cpuid(void);
 void            kexit(int);
+struct proc*    allocproc(void);
+void            freeproc(struct proc*);
+int             snap_request(int, char*);
 int             kfork(void);
 int             growproc(int);
 void            proc_mapstacks(pagetable_t);
@@ -129,6 +133,14 @@ char*           safestrcpy(char*, const char*, int);
 int             strlen(const char*);
 int             strncmp(const char*, const char*, uint);
 char*           strncpy(char*, const char*, int);
+
+// sysfile.c
+struct inode*   create(char*, short, short, short);
+
+// snap.c
+int             snap_due(struct proc*);
+void            snap_save(struct proc*);
+int             snap_restore(char*);
 
 // syscall.c
 void            argint(int, int*);

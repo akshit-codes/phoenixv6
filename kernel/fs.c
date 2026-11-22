@@ -278,6 +278,28 @@ iget(uint dev, uint inum)
   return ip;
 }
 
+// Return the inode numbered inum if it is allocated on disk and has
+// the given type, else 0. For callers that hold an inode number from
+// an earlier time: ilock() panics on a free inode, so the type has
+// to be checked on disk before the inode is used.
+struct inode *
+iget_type(uint dev, uint inum, short type)
+{
+  struct buf *bp;
+  struct dinode *dip;
+  short t;
+
+  if (inum < 1 || inum >= sb.ninodes)
+    return 0;
+  bp = bread(dev, IBLOCK(inum, sb));
+  dip = (struct dinode *)bp->data + inum % IPB;
+  t = dip->type;
+  brelse(bp);
+  if (t != type)
+    return 0;
+  return iget(dev, inum);
+}
+
 // Increment reference count for ip.
 // Returns ip to enable ip = idup(ip1) idiom.
 struct inode *
