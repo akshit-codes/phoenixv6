@@ -6,6 +6,8 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "vm.h"
+#include "fs.h"
+#include "undo.h"
 
 uint64
 sys_exit(void)
@@ -173,4 +175,23 @@ sys_autosave(void)
   if (interval > 0 && argsname(2, name) < 0)
     return -1;
   return snap_autosave(pid, interval, name);
+}
+
+// undo(op): start journaling the caller's file changes (UNDO_BEGIN),
+// or stop and keep them (UNDO_COMMIT) or take them back (UNDO_ABORT).
+uint64
+sys_undo(void)
+{
+  int op;
+
+  argint(0, &op);
+  switch (op) {
+  case UNDO_BEGIN:
+    return undo_begin();
+  case UNDO_COMMIT:
+    return undo_end(0);
+  case UNDO_ABORT:
+    return undo_end(1);
+  }
+  return -1;
 }

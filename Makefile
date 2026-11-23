@@ -27,6 +27,7 @@ OBJS = \
   $K/exec.o \
   $K/sysfile.o \
   $K/snap.o \
+  $K/undo.o \
   $K/kernelvec.o \
   $K/plic.o \
   $K/virtio_disk.o
@@ -156,6 +157,8 @@ UPROGS=\
 	$U/_restore\
 	$U/_autosave\
 	$U/_snapinfo\
+	$U/_undo\
+	$U/_badprog\
 	$U/_counter\
 
 fs.img: mkfs/mkfs README $(UPROGS)

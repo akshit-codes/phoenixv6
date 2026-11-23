@@ -137,11 +137,27 @@ char*           strncpy(char*, const char*, int);
 
 // sysfile.c
 struct inode*   create(char*, short, short, short);
+int             dirunlink(struct inode*, char*);
 
 // snap.c
 int             snap_due(struct proc*);
 void            snap_save(struct proc*);
 int             snap_restore(char*);
+int             slot_write(struct inode*, uint, char*, uint);
+int             slot_read(struct inode*, uint, char*, uint);
+void            slot_close(struct inode*);
+
+// undo.c
+void            undoinit(void);
+int             undo_before_write(struct inode*);
+int             undo_before_open(char*, int);
+struct inode*   undo_before_unlink(char*);
+void            undo_keep(struct inode*, struct inode*, char*);
+void            undo_rollback(char*);
+void            undo_discard(char*);
+int             undo_begin(void);
+int             undo_end(int);
+void            undo_recover(void);
 
 // syscall.c
 void            argint(int, int*);

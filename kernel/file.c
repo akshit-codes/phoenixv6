@@ -147,6 +147,12 @@ filewrite(struct file *f, uint64 addr, int n)
       return -1;
     ret = devsw[f->major].write(1, addr, n);
   } else if (f->type == FD_INODE) {
+    // if this process's changes are being journaled, save the
+    // file's old contents before the first one. this has to happen
+    // here, before any transaction is open or the inode is locked.
+    if (myproc()->undo_on && undo_before_write(f->ip) < 0)
+      return -1;
+
     // write a few blocks at a time to avoid exceeding
     // the maximum log transaction size, including
     // i-node, indirect block, allocation blocks,

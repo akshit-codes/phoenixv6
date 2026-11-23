@@ -59,7 +59,7 @@ slotpath(char *path, char *name, int slot)
 // Write n bytes from kernel address src to ip at offset off.
 // Like filewrite(), it writes a few blocks per transaction so as
 // not to overflow the log. ip must be referenced but not locked.
-static int
+int
 slot_write(struct inode *ip, uint off, char *src, uint n)
 {
   uint max = ((MAXOPBLOCKS - 1 - 1 - 2) / 2) * BSIZE;
@@ -82,7 +82,7 @@ slot_write(struct inode *ip, uint off, char *src, uint n)
 }
 
 // Read exactly n bytes from ip at offset off to kernel address dst.
-static int
+int
 slot_read(struct inode *ip, uint off, char *dst, uint n)
 {
   ilock(ip);
@@ -93,7 +93,7 @@ slot_read(struct inode *ip, uint off, char *dst, uint n)
 
 // Drop a reference to an inode. iput() may free a file, so it has
 // to run inside a transaction.
-static void
+void
 slot_close(struct inode *ip)
 {
   begin_op();

@@ -24,3 +24,4 @@
 #define SYS_checkpoint 23
 #define SYS_restore 24
 #define SYS_autosave 25
+#define SYS_undo 26

@@ -126,6 +126,7 @@ found:
   p->snap_req = 0;
   p->as_interval = 0;
   p->sname[0] = 0;
+  p->undo_on = 0;
 
   // Allocate a trapframe page.
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0) {
@@ -290,6 +291,10 @@ kfork(void)
   np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
+
+  // a child's file changes belong to the same undo journal.
+  np->undo_on = p->undo_on;
+  safestrcpy(np->sname, p->sname, sizeof(np->sname));
 
   pid = np->pid;
 
@@ -528,6 +533,10 @@ forkret(void)
     // regular process (e.g., because it calls sleep), and thus cannot
     // be run from main().
     fsinit(ROOTDEV);
+
+    // take back the changes of any command that was running under
+    // undo when the machine last went down.
+    undo_recover();
 
     // We can invoke kexec() now that file system is initialized.
     // Put the return value (argc) of kexec into a0.

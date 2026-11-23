@@ -198,38 +198,30 @@ isdirempty(struct inode *dp)
   return 1;
 }
 
-uint64
-sys_unlink(void)
+// Remove the entry called name from directory dp, and drop the link
+// it held. dp must be locked, and stays locked. Must be called
+// inside a transaction. Returns 0, or -1 if there is no such entry
+// or it is a directory that is not empty.
+int
+dirunlink(struct inode *dp, char *name)
 {
-  struct inode *ip, *dp;
+  struct inode *ip;
   struct dirent de;
-  char name[DIRSIZ], path[MAXPATH];
   uint off;
-
-  if (argstr(0, path, MAXPATH) < 0)
-    return -1;
-
-  begin_op();
-  if ((dp = nameiparent(path, name)) == 0) {
-    end_op();
-    return -1;
-  }
-
-  ilock(dp);
 
   // Cannot unlink "." or "..".
   if (namecmp(name, ".") == 0 || namecmp(name, "..") == 0)
-    goto bad;
+    return -1;
 
   if ((ip = dirlookup(dp, name, &off)) == 0)
-    goto bad;
+    return -1;
   ilock(ip);
 
   if (ip->nlink < 1)
     panic("unlink: nlink < 1");
   if (ip->type == T_DIR && !isdirempty(ip)) {
     iunlockput(ip);
-    goto bad;
+    return -1;
   }
 
   memset(&de, 0, sizeof(de));
@@ -239,20 +231,48 @@ sys_unlink(void)
     dp->nlink--;
     iupdate(dp);
   }
-  iunlockput(dp);
 
   ip->nlink--;
   iupdate(ip);
   iunlockput(ip);
-
-  end_op();
-
   return 0;
+}
 
-bad:
+uint64
+sys_unlink(void)
+{
+  struct inode *dp, *udp = 0;
+  char name[DIRSIZ], path[MAXPATH];
+  int r;
+
+  if (argstr(0, path, MAXPATH) < 0)
+    return -1;
+
+  // if this process's changes are being journaled, note the
+  // deletion before it happens.
+  if (myproc()->undo_on)
+    udp = undo_before_unlink(path);
+
+  begin_op();
+  if ((dp = nameiparent(path, name)) == 0) {
+    if (udp)
+      iput(udp);
+    end_op();
+    return -1;
+  }
+
+  ilock(dp);
+  // keep the file's contents alive, in this same transaction.
+  if (udp)
+    undo_keep(udp, dp, name);
+  r = dirunlink(dp, name);
   iunlockput(dp);
+  if (udp)
+    iput(udp);
+
   end_op();
-  return -1;
+
+  return r;
 }
 
 struct inode *
@@ -338,6 +358,11 @@ sys_open(void)
   if ((n = argstr(0, path, MAXPATH)) < 0)
     return -1;
 
+  // if this process's changes are being journaled, note what this
+  // open is about to create or destroy.
+  if (myproc()->undo_on && undo_before_open(path, omode) < 0)
+    return -1;
+
   begin_op();
 
   if (omode & O_CREATE) {
@@ -400,8 +425,13 @@ sys_mkdir(void)
   char path[MAXPATH];
   struct inode *ip;
 
+  if (argstr(0, path, MAXPATH) < 0)
+    return -1;
+  if (myproc()->undo_on && undo_before_open(path, O_CREATE) < 0)
+    return -1;
+
   begin_op();
-  if (argstr(0, path, MAXPATH) < 0 || (ip = create(path, T_DIR, 0, 0)) == 0) {
+  if ((ip = create(path, T_DIR, 0, 0)) == 0) {
     end_op();
     return -1;
   }

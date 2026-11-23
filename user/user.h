@@ -28,6 +28,7 @@ int sync(void);
 int checkpoint(int, const char *);
 int restore(const char *);
 int autosave(int, int, const char *);
+int undo(int);
 
 // ulib.c
 int stat(const char *, struct stat *);

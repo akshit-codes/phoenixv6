@@ -46,3 +46,4 @@ entry("sync");
 entry("checkpoint");
 entry("restore");
 entry("autosave");
+entry("undo");
