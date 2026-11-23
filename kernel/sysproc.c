@@ -155,3 +155,22 @@ sys_restore(void)
     return -1;
   return snap_restore(name);
 }
+
+// autosave(pid, ticks, name): have process pid save a snapshot of
+// itself every ticks timer ticks. ticks == 0 turns it off, and the
+// name is then ignored.
+uint64
+sys_autosave(void)
+{
+  int pid, interval;
+  char name[SNAMELEN];
+
+  argint(0, &pid);
+  argint(1, &interval);
+  if (interval < 0)
+    return -1;
+  name[0] = 0;
+  if (interval > 0 && argsname(2, name) < 0)
+    return -1;
+  return snap_autosave(pid, interval, name);
+}

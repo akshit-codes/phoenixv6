@@ -89,7 +89,9 @@ struct proc {
   int xstate;           // Exit status to be returned to parent's wait
   int pid;              // Process ID
   int snap_req;         // If non-zero, save a snapshot (see snap.c)
-  char sname[SNAMELEN]; // Name to save the snapshot under
+  int as_interval;      // If non-zero, save one every this many ticks
+  uint as_next;         // Tick at which the next one is due
+  char sname[SNAMELEN]; // Name to save snapshots under
 
   // wait_lock must be held when using this:
   struct proc *parent; // Parent process

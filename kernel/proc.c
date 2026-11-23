@@ -124,6 +124,7 @@ found:
   p->pid = allocpid();
   p->state = USED;
   p->snap_req = 0;
+  p->as_interval = 0;
   p->sname[0] = 0;
 
   // Allocate a trapframe page.
@@ -634,8 +635,36 @@ snap_request(int pid, char *name)
   for (p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if (p->pid == pid && p->state != UNUSED && p->state != ZOMBIE) {
+      // A process being autosaved has one name; don't switch it.
+      if (p->as_interval > 0 && strncmp(p->sname, name, SNAMELEN) != 0) {
+        release(&p->lock);
+        return -1;
+      }
       safestrcpy(p->sname, name, sizeof(p->sname));
       p->snap_req = 1;
+      release(&p->lock);
+      return 0;
+    }
+    release(&p->lock);
+  }
+  return -1;
+}
+
+// Have the process with the given pid save a snapshot of itself
+// every interval ticks, starting now. An interval of 0 stops it.
+int
+snap_autosave(int pid, int interval, char *name)
+{
+  struct proc *p;
+
+  for (p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if (p->pid == pid && p->state != UNUSED && p->state != ZOMBIE) {
+      if (interval > 0) {
+        safestrcpy(p->sname, name, sizeof(p->sname));
+        p->as_next = ticks; // the first save is due at once
+      }
+      p->as_interval = interval;
       release(&p->lock);
       return 0;
     }

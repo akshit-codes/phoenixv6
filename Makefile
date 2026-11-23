@@ -154,6 +154,8 @@ UPROGS=\
 	$U/_sync\
 	$U/_checkpoint\
 	$U/_restore\
+	$U/_autosave\
+	$U/_snapinfo\
 	$U/_counter\
 
 fs.img: mkfs/mkfs README $(UPROGS)

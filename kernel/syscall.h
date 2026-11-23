@@ -23,3 +23,4 @@
 #define SYS_sync   22
 #define SYS_checkpoint 23
 #define SYS_restore 24
+#define SYS_autosave 25

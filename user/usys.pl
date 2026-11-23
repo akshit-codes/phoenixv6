@@ -45,3 +45,4 @@ entry("uptime");
 entry("sync");
 entry("checkpoint");
 entry("restore");
+entry("autosave");

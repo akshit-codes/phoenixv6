@@ -85,6 +85,7 @@ void            kexit(int);
 struct proc*    allocproc(void);
 void            freeproc(struct proc*);
 int             snap_request(int, char*);
+int             snap_autosave(int, int, char*);
 int             kfork(void);
 int             growproc(int);
 void            proc_mapstacks(pagetable_t);

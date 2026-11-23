@@ -9,6 +9,11 @@
 // The header is written twice: first with valid == 0, before any
 // page, and again with valid == 1 after the last page. A snapshot
 // is only ever used if valid == 1.
+//
+// Each name has two such files, "slots" 0 and 1. A save always goes
+// to the slot that does not hold the newest complete snapshot, so a
+// crash in the middle of a save leaves the previous one untouched.
+// The slot with the higher generation number is the newer.
 
 #define SNAP_MAGIC 0x534e4150 // "SNAP"
 #define SNAP_DATA  BSIZE      // file offset of the first page record
@@ -27,7 +32,11 @@ struct snapfile {
 struct snaphdr {
   uint magic;
   uint valid;    // 1 once every page has been written
+  uint generation; // 1, 2, 3, ... across both slots
   uint npages;   // page records that follow
+  uint checksum; // of all the page records
+  uint saved_at; // ticks when the save began
+  int interval;  // autosave interval in ticks, or 0
   uint cwd_inum; // current directory
   uint64 sz;     // p->sz
   char name[16]; // p->name
