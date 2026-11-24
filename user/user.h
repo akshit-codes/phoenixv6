@@ -26,9 +26,10 @@ int pause(int);
 int uptime(void);
 int sync(void);
 int checkpoint(int, const char *);
-int restore(const char *);
+int restore(const char *, int);
 int autosave(int, int, const char *);
 int undo(int);
+int crashat(int);
 
 // ulib.c
 int stat(const char *, struct stat *);

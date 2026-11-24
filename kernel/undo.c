@@ -442,6 +442,7 @@ undo_modify(char *name, struct urec *r)
     iunlock(ip);
   }
   end_op();
+  crash_here(3);
   if (ip) {
     undo_copy(ip, bp);
     slot_close(ip);
@@ -653,6 +654,7 @@ undo_reset(char *name, uint epoch)
   iunlock(jp);
   end_op();
   slot_close(jp);
+  crash_here(4);
 
   // 2. Remove the old backups and kept files. This must finish
   //    before journaling goes on: a backup left over from the old

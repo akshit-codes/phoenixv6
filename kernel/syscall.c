@@ -107,6 +107,7 @@ extern uint64 sys_checkpoint(void);
 extern uint64 sys_restore(void);
 extern uint64 sys_autosave(void);
 extern uint64 sys_undo(void);
+extern uint64 sys_crashat(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -138,6 +139,7 @@ static uint64 (*syscalls[])(void) = {
   [SYS_restore] = sys_restore,
   [SYS_autosave] = sys_autosave,
   [SYS_undo] = sys_undo,
+  [SYS_crashat] = sys_crashat,
   // clang-format on
 };
 

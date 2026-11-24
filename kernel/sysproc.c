@@ -146,16 +146,19 @@ sys_checkpoint(void)
   return snap_request(pid, name);
 }
 
-// restore(name): start a new process from a snapshot.
-// Returns the new process's pid.
+// restore(name, norollback): start a new process from a snapshot.
+// Returns the new process's pid. If norollback is non-zero, files
+// are not put back as they were at the snapshot.
 uint64
 sys_restore(void)
 {
   char name[SNAMELEN];
+  int norollback;
 
   if (argsname(0, name) < 0)
     return -1;
-  return snap_restore(name);
+  argint(1, &norollback);
+  return snap_restore(name, !norollback);
 }
 
 // autosave(pid, ticks, name): have process pid save a snapshot of
@@ -194,4 +197,13 @@ sys_undo(void)
     return undo_end(1);
   }
   return -1;
+}
+
+// crashat(n): make the kernel stop at crash point n (see snap.c).
+// For testing recovery; 0 turns it off.
+uint64
+sys_crashat(void)
+{
+  argint(0, &crashpoint);
+  return 0;
 }

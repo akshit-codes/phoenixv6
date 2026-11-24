@@ -159,6 +159,7 @@ UPROGS=\
 	$U/_snapinfo\
 	$U/_undo\
 	$U/_badprog\
+	$U/_crashat\
 	$U/_counter\
 
 fs.img: mkfs/mkfs README $(UPROGS)

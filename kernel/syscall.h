@@ -25,3 +25,4 @@
 #define SYS_restore 24
 #define SYS_autosave 25
 #define SYS_undo 26
+#define SYS_crashat 27

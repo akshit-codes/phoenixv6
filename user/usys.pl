@@ -47,3 +47,4 @@ entry("checkpoint");
 entry("restore");
 entry("autosave");
 entry("undo");
+entry("crashat");

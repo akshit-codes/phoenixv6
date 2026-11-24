@@ -49,6 +49,25 @@ _Static_assert(sizeof(struct snaphdr) <= SNAP_DATA, "snaphdr too big");
 #define NSLOT      2
 #define CKSUM_INIT 2166136261u
 
+// For testing. crashat(n) sets crashpoint, and the kernel then stops
+// dead the next time it reaches crash_here(n). The points sit in
+// the middle of the multi-step disk updates, where losing power
+// would hurt most:
+//   1  snap_save():   every page written, header not yet valid
+//   2  snap_save():   snapshot committed, journal not yet reset
+//   3  undo_modify(): file emptied, old contents not yet copied back
+//   4  undo_reset():  journal emptied, old backups not yet removed
+int crashpoint;
+
+void
+crash_here(int n)
+{
+  if (crashpoint == n) {
+    printk("crash point %d reached\n", n);
+    panic("crash point");
+  }
+}
+
 // Path of a snapshot slot: "/<name>.s<slot>".
 static void
 slotpath(char *path, char *name, int slot)
@@ -324,6 +343,7 @@ snap_save(struct proc *p)
   // 3. Commit. The header is one block, so this write is a single
   //    log transaction: after a crash it has either happened or not.
   //    Until it happens, the other slot is still the newest.
+  crash_here(1);
   h->valid = 1;
   h->checksum = sum;
   if (slot_write(ip, 0, (char *)h, SNAP_DATA) < 0)
@@ -334,6 +354,7 @@ snap_save(struct proc *p)
   //    that, restore sees a journal older than the snapshot and
   //    knows not to roll it back. From here on this process's file
   //    changes are journaled, if they were not already.
+  crash_here(2);
   undo_lock();
   undo_reset(name, h->generation);
   undo_unlock();
@@ -507,8 +528,12 @@ bad:
 // Create a new process from the newest usable snapshot called name.
 // The new process is a child of the caller and continues from the
 // instant the snapshot was taken. Returns its pid, or -1.
+//
+// If rollback is 0 the files are left as they are now. That is
+// wrong for any program that writes files; it is there so that the
+// problem the journal solves can be shown.
 int
-snap_restore(char *name)
+snap_restore(char *name, int rollback)
 {
   struct snaphdr *h;
   struct inode *ip;
@@ -544,7 +569,9 @@ snap_restore(char *name)
     // afresh. Rolling back can be repeated, so a crash in here is
     // cured by restoring again.
     undo_lock();
-    if (undo_epoch(name) == gen[slot])
+    if (!rollback)
+      ; // leave the files alone
+    else if (undo_epoch(name) == gen[slot])
       undo_rollback(name);
     else if (i > 0)
       printk("restore %s: files may be newer than this snapshot\n", name);

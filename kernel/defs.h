@@ -143,7 +143,9 @@ int             dirunlink(struct inode*, char*);
 // snap.c
 int             snap_due(struct proc*);
 void            snap_save(struct proc*);
-int             snap_restore(char*);
+int             snap_restore(char*, int);
+void            crash_here(int);
+extern int      crashpoint;
 int             slot_write(struct inode*, uint, char*, uint);
 int             slot_read(struct inode*, uint, char*, uint);
 void            slot_close(struct inode*);
