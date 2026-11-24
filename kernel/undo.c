@@ -53,6 +53,19 @@ undoinit(void)
   initsleeplock(&undolock, "undo");
 }
 
+// For snap.c, which resets and rolls back journals.
+void
+undo_lock(void)
+{
+  acquiresleep(&undolock);
+}
+
+void
+undo_unlock(void)
+{
+  releasesleep(&undolock);
+}
+
 // path = "/<name>.u" if ent is 0, else "/<name>.u/<ent>".
 static void
 upath(char *path, char *name, char *ent)
@@ -529,16 +542,38 @@ undo_rollback(char *name)
   slot_close(jp);
 }
 
-// Throw the session's journal away: its changes can no longer be
-// undone. Files that were deleted are really freed now.
-// Caller holds undolock.
+// Remove every entry of the undo directory udp (referenced, not
+// locked), except the journal itself if keep_journal is set.
+// Dropping the extra link of a deleted file is what finally frees
+// that file.
+static void
+undo_empty(struct inode *udp, int keep_journal)
+{
+  struct dirent de;
+  uint off;
+
+  for (off = 2 * sizeof(de);; off += sizeof(de)) {
+    begin_op();
+    ilock(udp);
+    if (readi(udp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de)) {
+      iunlock(udp);
+      end_op();
+      break;
+    }
+    if (de.inum != 0 && !(keep_journal && namecmp(de.name, "journal") == 0))
+      dirunlink(udp, de.name);
+    iunlock(udp);
+    end_op();
+  }
+}
+
+// Throw the session's journal away, directory and all: its changes
+// can no longer be undone. Caller holds undolock.
 void
 undo_discard(char *name)
 {
   char path[UPATH], ent[DIRSIZ];
   struct inode *jp, *udp, *dp;
-  struct dirent de;
-  uint off;
 
   // 1. Empty the journal, in one transaction. From here on there is
   //    nothing to roll back, so what follows may be interrupted.
@@ -554,21 +589,8 @@ undo_discard(char *name)
   if ((udp = undo_dir(name, 0)) == 0)
     return;
 
-  // 2. Remove everything in the undo directory. Dropping the extra
-  //    link of a deleted file is what finally frees it.
-  for (off = 2 * sizeof(de);; off += sizeof(de)) {
-    begin_op();
-    ilock(udp);
-    if (readi(udp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de)) {
-      iunlock(udp);
-      end_op();
-      break;
-    }
-    if (de.inum != 0)
-      dirunlink(udp, de.name);
-    iunlock(udp);
-    end_op();
-  }
+  // 2. Remove everything in the undo directory.
+  undo_empty(udp, 0);
 
   // 3. Remove the directory itself.
   upath(path, name, 0);
@@ -580,6 +602,64 @@ undo_discard(char *name)
   }
   iput(udp);
   end_op();
+}
+
+// The epoch in the session's journal header: the generation of the
+// snapshot its records come after. 0 if there is no journal, or it
+// belongs to an undo command rather than to a snapshot.
+// Caller holds undolock.
+uint
+undo_epoch(char *name)
+{
+  struct inode *jp;
+  struct ujhdr hdr;
+  uint epoch = 0;
+
+  if ((jp = undo_open(name, "journal", 0)) == 0)
+    return 0;
+  if (slot_read(jp, 0, (char *)&hdr, sizeof(hdr)) == 0 &&
+      hdr.magic == UNDO_MAGIC)
+    epoch = hdr.epoch;
+  slot_close(jp);
+  return epoch;
+}
+
+// Start the session's journal afresh for a new snapshot: forget the
+// recorded changes, which that snapshot now includes, and stamp the
+// journal with the snapshot's generation. Caller holds undolock.
+int
+undo_reset(char *name, uint epoch)
+{
+  struct inode *jp, *udp;
+  struct ujhdr hdr;
+  int r;
+
+  if ((udp = undo_dir(name, 1)) == 0)
+    return -1;
+  if ((jp = undo_open(name, "journal", 1)) == 0) {
+    slot_close(udp);
+    return -1;
+  }
+
+  // 1. In one transaction, empty the journal and write its new
+  //    header. After a crash the journal is either the old one,
+  //    complete, or the new empty one; never a mixture.
+  hdr.magic = UNDO_MAGIC;
+  hdr.epoch = epoch;
+  begin_op();
+  ilock(jp);
+  itrunc(jp);
+  r = writei(jp, 0, (uint64)&hdr, 0, sizeof(hdr));
+  iunlock(jp);
+  end_op();
+  slot_close(jp);
+
+  // 2. Remove the old backups and kept files. This must finish
+  //    before journaling goes on: a backup left over from the old
+  //    epoch would be mistaken for one made in the new.
+  undo_empty(udp, 1);
+  slot_close(udp);
+  return r == sizeof(hdr) ? 0 : -1;
 }
 
 //
@@ -595,6 +675,7 @@ undo_begin(void)
   char name[SNAMELEN];
 
   acquire(&p->lock);
+  // Not if already journaled, by undo or because of a snapshot.
   if (p->undo_on || p->as_interval > 0) {
     release(&p->lock);
     return -1;

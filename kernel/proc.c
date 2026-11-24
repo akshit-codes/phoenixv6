@@ -644,8 +644,10 @@ snap_request(int pid, char *name)
   for (p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if (p->pid == pid && p->state != UNUSED && p->state != ZOMBIE) {
-      // A process being autosaved has one name; don't switch it.
-      if (p->as_interval > 0 && strncmp(p->sname, name, SNAMELEN) != 0) {
+      // A process whose changes are journaled has one name, which
+      // is also the journal's; don't switch it.
+      if ((p->as_interval > 0 || p->undo_on) &&
+          strncmp(p->sname, name, SNAMELEN) != 0) {
         release(&p->lock);
         return -1;
       }
@@ -670,6 +672,10 @@ snap_autosave(int pid, int interval, char *name)
     acquire(&p->lock);
     if (p->pid == pid && p->state != UNUSED && p->state != ZOMBIE) {
       if (interval > 0) {
+        if (p->undo_on && strncmp(p->sname, name, SNAMELEN) != 0) {
+          release(&p->lock);
+          return -1; // already journaled under another name
+        }
         safestrcpy(p->sname, name, sizeof(p->sname));
         p->as_next = ticks; // the first save is due at once
       }
@@ -680,6 +686,24 @@ snap_autosave(int pid, int interval, char *name)
     release(&p->lock);
   }
   return -1;
+}
+
+// Is a live process saving snapshots or journaling under this name?
+int
+snap_inuse(char *name)
+{
+  struct proc *p;
+  int inuse = 0;
+
+  for (p = proc; p < &proc[NPROC] && !inuse; p++) {
+    acquire(&p->lock);
+    if (p->state != UNUSED && p->state != ZOMBIE &&
+        (p->as_interval > 0 || p->undo_on) &&
+        strncmp(p->sname, name, SNAMELEN) == 0)
+      inuse = 1;
+    release(&p->lock);
+  }
+  return inuse;
 }
 
 void

@@ -20,6 +20,13 @@
 // new one count. A crash at any moment leaves at least the previous
 // snapshot intact.
 //
+// Memory is not all of a program's state: it also changes files.
+// Bringing back old memory next to newer files gives a state that
+// never existed. So from its first snapshot on, a process's file
+// changes are journaled (undo.c). Each snapshot starts the journal
+// afresh, and restoring first rolls the files back to how they were
+// when the snapshot was taken.
+//
 
 #include "types.h"
 #include "riscv.h"
@@ -322,6 +329,16 @@ snap_save(struct proc *p)
   if (slot_write(ip, 0, (char *)h, SNAP_DATA) < 0)
     goto fail;
 
+  // 4. The journal's changes are now part of this snapshot; start
+  //    it afresh, stamped with this generation. If we crash before
+  //    that, restore sees a journal older than the snapshot and
+  //    knows not to roll it back. From here on this process's file
+  //    changes are journaled, if they were not already.
+  undo_lock();
+  undo_reset(name, h->generation);
+  undo_unlock();
+  p->undo_on = 1;
+
   if (asked)
     printk("snapshot %s: saved pid %d (%d pages, generation %d)\n", name,
            p->pid, npages, h->generation);
@@ -457,7 +474,9 @@ snap_build(struct inode *ip, struct snaphdr *h, char *name)
   release(&wait_lock);
 
   acquire(&np->lock);
-  // Carry on autosaving under the same name, if it was being done.
+  // Carry on journaling, and autosaving if it was being done, under
+  // the same name.
+  np->undo_on = 1;
   safestrcpy(np->sname, name, sizeof(np->sname));
   np->as_interval = h->interval > 0 ? h->interval : 0;
   np->as_next = ticks + np->as_interval;
@@ -496,6 +515,12 @@ snap_restore(char *name)
   uint gen[NSLOT];
   int i, slot, pid = -1;
 
+  // The original must be gone: two processes cannot share a journal.
+  if (snap_inuse(name)) {
+    printk("restore %s: a process using that name is still running\n", name);
+    return -1;
+  }
+
   if ((h = (struct snaphdr *)kalloc()) == 0)
     return -1;
 
@@ -509,6 +534,23 @@ snap_restore(char *name)
       continue;
     if ((ip = slot_open(name, slot, h)) == 0)
       continue;
+
+    // Put the files back as they were at this snapshot. A journal
+    // whose epoch is this snapshot's generation holds the changes
+    // made since it: roll them back. Any other journal is from
+    // before it (we crashed between writing the snapshot and
+    // resetting the journal) or belongs to the other slot, and
+    // must not be rolled back. Either way the journal then starts
+    // afresh. Rolling back can be repeated, so a crash in here is
+    // cured by restoring again.
+    undo_lock();
+    if (undo_epoch(name) == gen[slot])
+      undo_rollback(name);
+    else if (i > 0)
+      printk("restore %s: files may be newer than this snapshot\n", name);
+    undo_reset(name, gen[slot]);
+    undo_unlock();
+
     pid = snap_build(ip, h, name);
     if (pid < 0)
       printk("restore %s: slot %d (generation %d) is unusable\n", name, slot,
