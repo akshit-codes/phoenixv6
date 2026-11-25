@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 #
-# Tests for AutoSave and Undo. Boots xv6 in qemu, types commands at
+# Tests for phoenixv6 (AutoSave and Undo). Boots xv6 in qemu, types commands at
 # its shell, cuts the power (kills qemu) at random or at chosen
 # points, boots again on the same disk, and checks the files.
 #

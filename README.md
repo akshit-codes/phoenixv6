@@ -1,6 +1,10 @@
-# AutoSave and Undo for xv6
+# phoenixv6
 
-A course project on xv6-riscv. It adds two things to the kernel, built on one mechanism.
+**xv6 that rises again after a crash.** AutoSave and Undo for [xv6-riscv](https://github.com/mit-pdos/xv6-riscv), MIT's teaching operating system.
+
+A phoenix burns and rises from its own ashes. Under phoenixv6 a running program can lose power in the middle of its work and continue after the reboot from its last snapshot, with its files put back to match.
+
+This is a course project. It adds two things to the xv6 kernel, built on one mechanism.
 
 **AutoSave.** The kernel periodically saves a complete snapshot of a chosen running program to disk. The program is not modified and does not know. If it is killed, or the machine loses power, `restore` brings it back and it continues from the last snapshot, including after a reboot.
 
@@ -18,6 +22,16 @@ A course project on xv6-riscv. It adds two things to the kernel, built on one me
 So from a process's first snapshot on, the kernel journals its file changes, and `restore` rolls the files back to the moment of the snapshot before the program resumes. The claim the tests check:
 
 > After a power cut at any moment, a restored program finishes with output byte-for-byte identical to a run that was never interrupted.
+
+## Building and running
+
+You need a RISC-V toolchain (`riscv64-unknown-elf-gcc`, `riscv64-elf-gcc` or `riscv64-linux-gnu-gcc`) and `qemu-system-riscv64`, the same as for stock xv6.
+
+```
+make qemu          build everything and boot; Ctrl-a x quits qemu
+```
+
+The disk image `fs.img` is kept between boots, which is what lets a snapshot outlive a power cut. `make clean` removes it.
 
 ## Commands
 
@@ -113,3 +127,7 @@ $ cat a.txt b.txt c.txt      as before
 - The first write to a file after each snapshot copies the whole file.
 - The program is paused while it is being saved.
 - Not journaled: `link`, `mknod`, removing a directory, and changes made by processes outside the session.
+
+## Credits and license
+
+phoenixv6 is built on xv6-riscv by Frans Kaashoek, Robert Morris, Russ Cox and the MIT PDOS group. Their original README is kept unchanged as [`README`](README) (the build also copies it into the xv6 disk image, and the stock tests read it). Everything is under the MIT license in [`LICENSE`](LICENSE).
